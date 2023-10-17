@@ -11,6 +11,16 @@ const validateValues = (data) => {
   return true;
 };
 
+function pick(object, keys) {
+  return keys.reduce((pickedObject, key) => {
+    if (object.hasOwnProperty(key)) {
+      pickedObject[key] = object[key];
+    }
+    return pickedObject;
+  }, {});
+}
+
 module.exports = {
   validateValues,
+  pick,
 };

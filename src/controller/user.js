@@ -9,6 +9,23 @@ const { db } = require("../models");
 const { NOT_FOUND, ALREADY_EXISTS, NOT_VALID } = require("../utils/messages");
 const { createToken } = require("../utils/jwt");
 
+const userQuery = {
+  include: [
+    {
+      model: db.Post,
+      attributes: [],
+      as: "Posts", // Updated alias to match the association
+      duplicating: false,
+    },
+  ],
+  attributes: {
+    include: [
+      [db.sequelize.fn("COUNT", db.sequelize.col("Posts.id")), "postCount"],
+    ], // Updated alias to match the association
+  },
+  group: ["User.id"],
+};
+
 // login user
 const login = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
@@ -19,6 +36,7 @@ const login = catchAsync(async (req, res, next) => {
     where: {
       email,
     },
+    ...userQuery,
   });
   console.log("🚀 ~ file: user.js:23 ~ login ~ user:", user);
 
@@ -30,16 +48,19 @@ const login = catchAsync(async (req, res, next) => {
   if (!isMatch) {
     return next(new ApiError(`Invalid credentials`, 400));
   }
-  console.log(
-    "🚀 ~ file: user.js:36 ~ login ~ user?.dataValues?._id:",
-    user?.dataValues?.id
-  );
 
   const accessToken = createToken({
     id: user?.dataValues?.id,
   });
 
+  delete user.dataValues.password;
+  console.log("🚀 ~ file: user.js:43 ~ login ~ user:", user);
+
   successHandler(res, { user, accessToken });
+});
+
+const checkToken = catchAsync(async (req, res) => {
+  successHandler(res, null);
 });
 
 // Create a new user
@@ -92,10 +113,15 @@ const getAllUsers = catchAsync(async (req, res) => {
 const getUserById = catchAsync(async (req, res) => {
   const { userId } = req.params;
 
-  const user = await db.User.findByPk(userId);
+  const user = await db.User.findOne({
+    where: {
+      id: userId,
+    },
+    ...userQuery,
+  });
 
   if (!user) {
-    throw new ApiError(NOT_FOUND("User", userId));
+    throw new ApiError(NOT_FOUND("User", userId), httpStatus.BAD_REQUEST);
   }
 
   successHandler(res, user);
@@ -142,6 +168,7 @@ const deleteUser = catchAsync(async (req, res) => {
 module.exports = {
   login,
   createUser,
+  checkToken,
   getAllUsers,
   getUserById,
   updateUser,

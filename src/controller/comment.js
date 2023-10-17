@@ -27,8 +27,15 @@ const createComment = catchAsync(async (req, res) => {
 const getCommentsByPostId = catchAsync(async (req, res) => {
   const { postId } = req.params;
   const comments = await Comment.findAll({
-    where: { post: postId },
-    // include: [{ model: db.User, attributes: ["username"] }],
+    where: { postId },
+    attributes: { exclude: ["updatedAt", "userId", "postId"] },
+    include: [
+      {
+        model: db.User,
+        attributes: ["username", "profile_url", "id"],
+        as: "user",
+      },
+    ],
   });
 
   successHandler(res, comments);
@@ -48,14 +55,8 @@ const deleteComment = catchAsync(async (req, res) => {
     throw new ApiError(NOT_FOUND("Post", postId), httpStatus.BAD_REQUEST);
   }
 
-  const commentIndex = post.comments.indexOf(commentId);
-  if (commentIndex !== -1) {
-    post.comments.splice(commentIndex, 1);
-    await post.save();
-  }
-
   await comment.destroy();
-  successHandler(res, null, 204);
+  successHandler(res, null);
 });
 
 module.exports = {

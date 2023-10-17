@@ -17,7 +17,7 @@ class Uploader {
       },
       filename: function (_req, file, cb) {
         const uniqueSuffix = Date.now() + "-" + file.originalname;
-        return cb(null, file.fieldname + "-" + uniqueSuffix);
+        return cb(null, uniqueSuffix);
       },
     });
     this.upload = multer({ storage: this.storage });
@@ -25,20 +25,3 @@ class Uploader {
 }
 
 module.exports = Uploader;
-// const storage = multer.diskStorage({
-//   destination: function (_req, _file, cb) {
-//     const destinationPath = path.join(__dirname, "../../files");
-//     if (!fs.existsSync(destinationPath)) {
-//       fs.mkdirSync(destinationPath, { recursive: true });
-//     }
-//     return cb(null, destinationPath);
-//   },
-//   filename: function (_req, file, cb) {
-//     const uniqueSuffix = Date.now() + "-" + file.originalname;
-//     return cb(null, file.fieldname + "-" + uniqueSuffix);
-//   },
-// });
-
-// const upload = multer({ storage });
-
-// module.exports = { upload };

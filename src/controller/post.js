@@ -8,6 +8,7 @@ const { ApiError } = require("../utils/errorHandler");
 const { NOT_FOUND } = require("../utils/messages");
 const { successHandler } = require("../utils/response");
 const { Op } = require("sequelize");
+const { handleLikes } = require("../services/post");
 
 const postQuery = {
   attributes: { exclude: ["updatedAt", "userId"] },
@@ -45,14 +46,19 @@ const postQuery = {
 };
 
 const createPost = catchAsync(async (req, res) => {
-  const { title, content } = req.body;
+  const { title, content, location } = req.body;
   const { id } = req.user;
 
   const postData = { title, content };
 
   validateValues(postData);
+  if (location !== "undefined") postData.location = location;
   postData.userId = id;
-  postData.post_url = req?.file?.path;
+
+  if (!req?.file) {
+    throw new ApiError("Please upload a file", httpStatus.BAD_REQUEST);
+  }
+  postData.post_url = `http://localhost:5433/assets/posts/${req?.file?.filename}`;
 
   const post = await Post.create(postData);
 
@@ -60,19 +66,23 @@ const createPost = catchAsync(async (req, res) => {
 });
 
 const getAllPosts = catchAsync(async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
-  const userId = req.user.id;
+  const { page = 1, limit = 10, allPosts, friendId } = req.query;
+  const authUserId = req.user.id;
 
-  const offset = (page - 1) * limit;
+  const offset = (page - 1) * +limit;
 
   const posts = await Post.findAndCountAll({
     ...postQuery,
-    where: { userId: { [Op.eq]: userId } },
+    where:
+      allPosts === "true"
+        ? {}
+        : { userId: { [Op.eq]: friendId || authUserId } },
     limit: parseInt(limit),
     offset: parseInt(offset),
+    order: [["createdAt", "DESC"]],
   });
 
-  const totalPages = Math.ceil(posts.count / limit);
+  const totalPages = Math.ceil(posts.count / +limit);
 
   const postRes = {
     totalPages,
@@ -103,9 +113,14 @@ const updatePost = catchAsync(async (req, res) => {
       httpStatus.BAD_REQUEST
     );
   }
-  const { title, content } = req.body;
+  const { title, content, location } = req.body;
+  const postData = { title, content };
+
+  validateValues(postData);
+
   post.title = title;
   post.content = content;
+  post.location = location;
 
   await post.save();
 
@@ -121,7 +136,7 @@ const deletePost = catchAsync(async (req, res) => {
     );
   }
   await post.destroy();
-  successHandler(res, null, 204);
+  successHandler(res, null, 200);
 });
 
 const likeHandler = catchAsync(async (req, res) => {
@@ -131,60 +146,9 @@ const likeHandler = catchAsync(async (req, res) => {
   console.log("🚀 ~ file: post.js:102 ~ likeHandler ~ userId:", userId);
 
   // Check if the like already exists
-  const existingLike = await Like.findOne({
-    where: {
-      postId,
-      userId,
-    },
-  });
-  console.log(
-    "🚀 ~ file: post.js:111 ~ likeHandler ~ existingLike:",
-    existingLike
-  );
+  const data = await handleLikes(postId, userId);
 
-  if (existingLike) {
-    // If the like exists, remove it
-    await existingLike.destroy();
-
-    // res.status(200).json({ message: "Like removed successfully" });
-  } else {
-    // If the like does not exist, create it
-    const newLike = await Like.create({
-      postId,
-      userId,
-    });
-
-    // res.status(201).json({ like: newLike, message: "Like created" });
-  }
-  // Find the post by postId
-  //   const post = await Post.findByPk(postId);
-
-  //   if (!post) {
-  //     throw new ApiError(NOT_FOUND("Post", postId), httpStatus.BAD_REQUEST);
-  //   }
-
-  //   const likes = post.likes || post?.dataValues?.likes || [];
-  //   const isUserAlreadyLiked = likes.includes(userId);
-
-  //   if (isUserAlreadyLiked) {
-  //     // Remove the user's userId from the likes array
-  //     await Post.update(
-  //       {
-  //         likes: db.sequelize.literal(`ARRAY_REMOVE(likes, ${userId})`),
-  //       },
-  //       { where: { id: postId } }
-  //     );
-  //   } else {
-  //     // Add the user's userId to the likes array
-  //     await Post.update(
-  //       {
-  //         likes: db.sequelize.literal(`ARRAY_APPEND(likes, ${userId})`),
-  //       },
-  //       { where: { id: postId } }
-  //     );
-  //   }
-
-  successHandler(res, { isUserExist: !existingLike }, 204);
+  successHandler(res, data, 200);
 });
 
 module.exports = {

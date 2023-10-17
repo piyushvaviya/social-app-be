@@ -28,6 +28,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   const errorRes = {
+    success: false,
     status,
     message,
     stack: err.stack,
